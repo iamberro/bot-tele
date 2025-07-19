@@ -128,13 +128,31 @@ def get_random_completion_message():
     return random.choice(COMPLETION_MESSAGES)
 
 async def get_video_metadata(url: str) -> dict | None:
+    """Mengambil judul dan hashtag dari URL video menggunakan yt-dlp."""
     logger.info(f"Mengambil metadata untuk URL: {url}")
-    ydl_opts = {'quiet': True, 'skip_download': True, 'cookiefile': 'youtube_cookies.txt'}
+    ydl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'cookiefile': 'youtube_cookies.txt'
+    }
     try:
         loop = asyncio.get_event_loop()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
-        return {'title': info.get('title', 'Judul Tidak Tersedia')}
+            info = await loop.run_in_executor(
+                None, lambda: ydl.extract_info(url, download=False)
+            )
+        
+        title = info.get('title', 'Judul Tidak Tersedia')
+        description = info.get('description', '')
+        hashtags = info.get('hashtags', [])
+        
+        if not hashtags:
+            full_text = f"{title} {description}"
+            found_hashtags = re.findall(r'#(\w+)', full_text)
+            if found_hashtags:
+                hashtags = list(dict.fromkeys(found_hashtags))
+                
+        return {'title': title, 'hashtags': hashtags}
     except Exception as e:
         logger.error(f"Gagal mengambil metadata: {e}")
         return None
@@ -210,7 +228,6 @@ async def download_audio_only(url: str) -> str | None:
         expected_path = f'downloads/{unique_id}.mp3'
         if os.path.exists(expected_path):
             return expected_path
-        # Fallback jika ekstensi tidak terduga
         for file in os.listdir('downloads'):
             if file.startswith(unique_id):
                 return os.path.join('downloads', file)
@@ -222,27 +239,9 @@ async def download_audio_only(url: str) -> str | None:
 # ==============================================================================
 # ======================== FUNGSI DOWNLOAD VIDEO LAMA ANDA =====================
 # ==============================================================================
-# Semua fungsi download video asli Anda dipertahankan di sini tanpa perubahan.
 
-def extract_youtube_video_id(url: str) -> str | None:
-    try:
-        if '/shorts/' in url.lower():
-            match = re.search(r'/shorts/([^?/]+)', url, re.IGNORECASE)
-            if match: return match.group(1)
-        if '/live/' in url.lower():
-            match = re.search(r'/live/([^?/]+)', url, re.IGNORECASE)
-            if match: return match.group(1)
-        patterns = [
-            r"youtube\.com/watch\?v=([^&]+)", r"youtu\.be/([^?]+)",
-            r"youtube\.com/embed/([^/]+)", r"youtube\.com/v/([^/]+)"
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, url, re.IGNORECASE)
-            if match: return match.group(1)
-        return None
-    except Exception as e:
-        logger.error(f"Error extracting YouTube video ID: {str(e)}")
-        return None
+async def download_youtube(url: str) -> str | None:
+    return await download_youtube_ytdlp(url)
 
 async def download_youtube_ytdlp(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (yt-dlp) untuk: {url}")
@@ -263,8 +262,8 @@ async def download_youtube_ytdlp(url: str) -> str | None:
         logger.error(f"Error download_youtube_ytdlp: {e}")
         return None
 
-async def download_youtube(url: str) -> str | None:
-    return await download_youtube_ytdlp(url)
+async def download_tiktok(url: str) -> str | None:
+    return await download_tiktok_ytdlp(url)
 
 async def download_tiktok_ytdlp(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (yt-dlp) untuk: {url}")
@@ -283,9 +282,6 @@ async def download_tiktok_ytdlp(url: str) -> str | None:
     except Exception as e:
         logger.error(f"Error download_tiktok_ytdlp: {e}")
         return None
-
-async def download_tiktok(url: str) -> str | None:
-    return await download_tiktok_ytdlp(url)
 
 async def download_facebook(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (yt-dlp) untuk: {url}")
@@ -337,8 +333,9 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     processing_msg = await update.message.reply_text(f"{get_random_loading_message()}")
 
     metadata = await get_video_metadata(url)
-    title = metadata['title'] if metadata else "Media"
-
+    title = metadata['title'] if metadata and metadata.get('title') else "Media"
+    hashtags = metadata['hashtags'] if metadata and metadata.get('hashtags') else []
+    
     # Tentukan fungsi download video yang akan digunakan
     video_downloader_func = None
     if 'youtube.com' in url or 'youtu.be' in url:
@@ -360,7 +357,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     results = await asyncio.gather(video_downloader_func, audio_downloader_func, return_exceptions=True)
     video_path, audio_path = results
 
-    # Siapkan daftar file untuk dihapus nanti
     files_to_delete = []
     if isinstance(video_path, str) and os.path.exists(video_path): files_to_delete.append(video_path)
     if isinstance(audio_path, str) and os.path.exists(audio_path): files_to_delete.append(audio_path)
@@ -371,21 +367,28 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             return
 
         await processing_msg.edit_text("✅ Download selesai! Mengirim file...")
+        
+        hashtags_text = ' '.join([f'#{tag}' for tag in hashtags])
 
         # Kirim Video
         if isinstance(video_path, str) and os.path.exists(video_path):
+            final_video_path = video_path
+            caption_suffix = ""
             if os.path.getsize(video_path) > TELEGRAM_MAX_SIZE:
                 logger.info("Video terlalu besar, mencoba kompresi...")
                 compressed_path = await compress_video(video_path)
                 if compressed_path and os.path.getsize(compressed_path) <= TELEGRAM_MAX_SIZE:
-                    with open(compressed_path, 'rb') as video_file:
-                        await update.message.reply_video(video=video_file, caption=f"🎬 {title} (dikompres)")
+                    final_video_path = compressed_path
                     files_to_delete.append(compressed_path)
+                    caption_suffix = " (dikompres)"
                 else:
                     await update.message.reply_text(f"🎬 Video terlalu besar untuk dikirim (batas 50MB).")
-            else:
-                with open(video_path, 'rb') as video_file:
-                    await update.message.reply_video(video=video_file, caption=f"🎬 {title}")
+                    final_video_path = None
+            
+            if final_video_path:
+                with open(final_video_path, 'rb') as video_file:
+                    video_caption = f"<b>{title}{caption_suffix}</b>\n\n<i>{hashtags_text}</i>"
+                    await update.message.reply_video(video=video_file, caption=video_caption, parse_mode='HTML')
         else:
             logger.error(f"Proses video gagal atau file tidak ditemukan: {video_path}")
             await update.message.reply_text("Gagal memproses file video.")
