@@ -149,12 +149,6 @@ def is_instagram_url(url: str) -> bool:
     ]
     return any(re.search(pattern, url) for pattern in patterns)
 
-def is_shopee_url(url: str) -> bool:
-    patterns = [
-        r'https?://shopee\.(co\.id|com)/video/.+'
-    ]
-    return any(re.search(pattern, url) for pattern in patterns)
-
 async def compress_video(input_path: str) -> str | None:
     output_path = os.path.splitext(input_path)[0] + "_compressed.mp4"
     try:
@@ -213,7 +207,7 @@ async def download_youtube(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (YouTube) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -232,7 +226,7 @@ async def download_tiktok(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (TikTok) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -250,7 +244,7 @@ async def download_facebook(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (Facebook) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -269,7 +263,7 @@ async def download_instagram(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (Instagram) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -282,24 +276,6 @@ async def download_instagram(url: str) -> str | None:
             return ydl.prepare_filename(info)
     except Exception as e:
         logger.error(f"Error download_instagram: {e}")
-        return None
-
-async def download_shopee(url: str) -> str | None:
-    logger.info(f"Memulai download VIDEO (Shopee) untuk: {url}")
-    unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
-    ydl_opts = {
-        'format': 'best[ext=mp4]/best',
-        'outtmpl': f'downloads/{unique_id}.%(ext)s',
-        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
-        'merge_output_format': 'mp4',
-        'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            return ydl.prepare_filename(info)
-    except Exception as e:
-        logger.error(f"Error download_shopee: {e}")
         return None
 
 # ==============================================================================
@@ -333,8 +309,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         video_downloader_func = download_facebook(url)
     elif is_instagram_url(url):
         video_downloader_func = download_instagram(url)
-    elif is_shopee_url(url):
-        video_downloader_func = download_shopee(url)
     else:
         await processing_msg.edit_text("❌ Format link tidak dikenali.")
         return
