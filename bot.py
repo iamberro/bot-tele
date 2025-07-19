@@ -32,18 +32,22 @@ TELEGRAM_MAX_SIZE = 50 * 1024 * 1024
 # --- Variabel & Pesan-pesan Bot ---
 message_timestamps = {}
 LOADING_MESSAGES = [
-    "🔎 Mencari video terbaik...", "⚡️ Mengunduh dengan kecepatan tinggi...",
-    "⏳ Memproses permintaan Anda...", "📥 Sedang mengunduh konten...",
-    "🎬 Menyiapkan video untuk Anda...", " sabar ya, ini bakal keren banget!",
-    "💾 Menyimpan video ke database...", "🚀 Proses hampir selesai...",
-    "🧹 Membersihkan cache...", "🎞 Rendering video terbaik..."
+    "Oke, link diterima! Gue lagi ngintip servernya... 🤫",
+    "Gaskeun! Nguuueeengg... Download sekencang kilat! ⚡️",
+    "Sabar ya, lagi gue proses. Data sedang ditarik dari alam gaib... 👻",
+    "Memanggil jin FFMPEG buat ngeracik videonya... 🧞‍♂️",
+    "Dikit lagi kelar... Lagi gue rapiin pixel-nya biar kinclong! ✨",
+    "Hampir mateng nih! Baunya udah wangi... eh, maksudnya videonya. 😂",
+    "Tahan napas... Sentuhan terakhir dari sang maestro! 🎨"
 ]
 COMPLETION_MESSAGES = [
-    "✅ Selesai! Video siap dinikmati!", "🎉 Berhasil! Silakan ditonton!",
-    "✨ Video sudah siap bosku!", "🔥 Mantap! Download berhasil!",
-    "💯 Kualitas HD sudah tersedia!", "👍 Proses selesai dengan sempurna!",
-    "📲 Video siap dibagikan!", "👌 Kerja bagus! Video sudah jadi!",
-    "😎 Keren banget nih videonya!", "🤩 Wow! Hasilnya memuaskan!"
+    "BOOM! 💥 Video pesenan lu udah jadi, nih!",
+    "Tadaa! ✨ Hasil mahakarya gue, spesial buat lu!",
+    "Beuh, mantap jiwa! Videonya udah siap tempur! 🔥",
+    "Nih, anget-anget baru diangkat dari prosesor! 🤩",
+    "Kerja bagus, Berro! Eh, maksudnya ini videonya buat lu. 😎",
+    "Selesai dengan sempurna! Kualitasnya? Jangan ditanya! 💯",
+    "Salam dari Berro, si paling sat set! 🤙"
 ]
 
 # ==============================================================================
@@ -52,52 +56,56 @@ COMPLETION_MESSAGES = [
 
 async def start(update: Update, context: CallbackContext) -> None:
     welcome_message = """
-<b>Selamat datang di Berro Downloader!</b> 
+<b>Wihh, ada yang mau download nih!</b> 🤙
 
-Saya bisa mengunduh video & audio dari:
-- YouTube (video biasa/shorts)
-- TikTok (termasuk link singkat)
-- Facebook (reels/feed videos)
-- Instagram (reels/feed)
+Kenalin, gue <b>Berro</b>, asisten download paling sabi se-Telegram! 😎
 
-<b>Cara Pakai:</b>
-Kirim link video yang ingin diunduh, dan saya akan mengirimkan file video (MP4) dan audionya (MP3) secara otomatis.
+Gue bisa nyedot video & audio dari:
+- 🎬 YouTube (biasa, shorts, semua bisa!)
+- 🕺 TikTok (link panjang pendek, sikat!)
+- 👨‍👩‍👧‍👦 Facebook (reels, video biasa, hajar!)
+- 📸 Instagram (reels, postingan, libas!)
 
-Tekan /help untuk bantuan lebih lanjut.
+<b>Gampang banget caranya:</b>
+Cukup lempar link video yang lu mau, terus duduk manis. Ntar gue sulap jadi file MP4 & MP3 buat lu! ✨
+
+Gaskeun! 👇
 """
     await update.message.reply_text(welcome_message, parse_mode='HTML')
 
 async def help_command(update: Update, context: CallbackContext) -> None:
     help_text = """
-<b> Bantuan Penggunaan Bot</b>
+<b>Butuh contekan? Tenang, gue bantu jelasin!</b> 📜
 
-<b>Perintah yang tersedia:</b>
-/start - Memulai bot dan menampilkan pesan selamat datang
-/help - Menampilkan pesan bantuan ini
-/status - Memeriksa status bot
+Nih jurus-jurus rahasia yang bisa lu pake:
+/start - Kenalan lagi sama gue & liat pesan saktinya.
+/help - Nampilin contekan ini lagi.
+/status - Cek kondisi gue, siap tempur apa nggak.
 
-<b>Pemecahan Masalah:</b>
-1. Jika media gagal diunduh:
-   - Pastikan link benar dan video bersifat publik.
-   - Coba lagi setelah beberapa saat.
+<b>Kalau ada drama pas download:</b>
+1️⃣ <b>Gagal download?</b>
+   - Cek lagi link-nya, jangan sampe typo, bro.
+   - Pastiin videonya publik, jangan yang digembok cintanya. 🔒
+   - Kadang server lagi ngambek, coba aja lagi beberapa menit kemudian.
 
-2. Jika file terlalu besar:
-   - Bot tidak akan mengirim file di atas 50MB.
-   - Bot akan mencoba kompresi otomatis untuk video jika memungkinkan.
+2️⃣ <b>File kegedean?</b>
+   - Gue cuma bisa kirim file di bawah 50MB. Aturan dari Telegram, bukan gue. 😅
+   - Kalau videonya kegedean, gue bakal coba kompres otomatis biar muat.
 
-<b>Support:</b>
-Untuk pertanyaan lebih lanjut, hubungi @berrontosaurus
+<b>Masih bingung?</b>
+Langsung aja colek bos gue di @berrontosaurus.
 """
     await update.message.reply_text(help_text, parse_mode='HTML')
 
 async def status_command(update: Update, context: CallbackContext) -> None:
-    status_message = """
-<b> Status Bot</b>
+    status_message = f"""
+<b>Cek kondisi gue, nih!</b> 🤙
 
-<b>Versi:</b> 2.4 (Alur Pesan Final)
-<b>Status:</b> Online 
-<b>Update Terakhir:</b> {}
-""".format(datetime.now().strftime("%d %B %Y"))
+<b>🤖 Nama Bot:</b> Berro Downloader
+<b>🔥 Kondisi:</b> On fire, siap tempur 24/7!
+<b>✨ Versi:</b> 2.5 (Mode Bawel Asyique)
+<b>🗓️ Update Terakhir:</b> {datetime.now().strftime("%d %B %Y")}
+"""
     await update.message.reply_text(status_message, parse_mode='HTML')
 
 # ==============================================================================
@@ -287,17 +295,17 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     if not re.match(r'https?://', url):
         return
 
-    processing_msg = await update.message.reply_text("Oke, link diterima! Gue cek dulu ya... 🤔")
+    processing_msg = await update.message.reply_text("Siaap! Link-nya gue terima, laksanakan! Cekidot dulu yaa... 🕵️‍♂️")
 
     metadata = await get_video_metadata(url)
     if not metadata or not metadata.get('title'):
-        await processing_msg.edit_text("Waduh, gue gak bisa dapetin info dari link itu, bro. Coba link lain ya.")
+        await processing_msg.edit_text("Waduh, error, Bro! Link-nya kayaknya aneh atau digembok nih. 🧐 Coba cari link lain yang publik, ya!")
         return
         
     title = metadata['title']
     hashtags = metadata.get('hashtags', [])
     
-    await processing_msg.edit_text(f"✅ Siip, ketemu! Judulnya: \"<i>{title[:50]}...</i>\".\n\nSekarang, gue sikat file video sama audionya. Sabar bentar... 🚀", parse_mode='HTML')
+    await processing_msg.edit_text(f"KETEMU! ✅ Judulnya \"<i>{title[:50]}...</i>\", mantul! Siap-siap, gue lagi ngeracik video & audionya. Prosesor gue sampe ngebul nih! 🔥", parse_mode='HTML')
 
     # Tentukan fungsi download video yang akan digunakan
     video_downloader_func = None
@@ -324,10 +332,10 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
     try:
         if not files_to_delete:
-            await processing_msg.edit_text("❌ Gagal total, bro. Kayaknya link-nya bermasalah atau videonya private.")
+            await processing_msg.edit_text("Yah, gagal maning, gagal maning... 😭 Kayaknya videonya diproteksi alien atau emang link-nya keliru, bro. Coba lagi pake link sakti lainnya!")
             return
 
-        await processing_msg.edit_text("🎁 Udah kelar! Lagi gue bungkus buat dikirim ke elu...")
+        await processing_msg.edit_text(f"Asiiik, udah jadi! 🎁 {get_random_completion_message()} Gue kirim filenya sekarang juga!")
         
         # --- ALUR PENGIRIMAN PESAN SESUAI PERMINTAAN ---
         
