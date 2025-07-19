@@ -207,7 +207,7 @@ async def download_youtube(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (YouTube) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -226,7 +226,7 @@ async def download_tiktok(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (TikTok) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -244,7 +244,7 @@ async def download_facebook(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (Facebook) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -263,7 +263,7 @@ async def download_instagram(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (Instagram) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
