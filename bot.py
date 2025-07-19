@@ -31,29 +31,7 @@ TELEGRAM_MAX_SIZE = 50 * 1024 * 1024
 
 # --- Variabel & Pesan-pesan Bot ---
 message_timestamps = {}
-LOADING_MESSAGES = [
-    "🔎 Mencari video terbaik...", "⚡️ Mengunduh dengan kecepatan tinggi...",
-    "⏳ Memproses permintaan Anda...", "📥 Sedang mengunduh konten...",
-    "🎬 Menyiapkan video untuk Anda...", " sabar ya, ini bakal keren banget!",
-    "💾 Menyimpan video ke database...", "🚀 Proses hampir selesai...",
-    "🧹 Membersihkan cache...", "🎞 Rendering video terbaik..."
-]
-COMPLETION_MESSAGES = [
-    "✅ Selesai! Video siap dinikmati!", "🎉 Berhasil! Silakan ditonton!",
-    "✨ Video sudah siap bosku!", "🔥 Mantap! Download berhasil!",
-    "💯 Kualitas HD sudah tersedia!", "👍 Proses selesai dengan sempurna!",
-    "📲 Video siap dibagikan!", "👌 Kerja bagus! Video sudah jadi!",
-    "😎 Keren banget nih videonya!", "🤩 Wow! Hasilnya memuaskan!"
-]
-ERROR_MESSAGES = {
-    'generic': " Maaf, ada kesalahan saat memproses video. Coba lagi ya!",
-    'private': " Video ini bersifat private atau memerlukan login.",
-    'unavailable': " Video tidak tersedia atau dihapus.",
-    'invalid': " Link yang Anda berikan tidak valid.",
-    'size': " Ukuran video melebihi batas maksimal (50MB).",
-    'timeout': "️ Proses terlalu lama. Coba link lain ya!",
-    'compression': " Gagal mengkompresi video. Coba link lain!"
-}
+# (Pesan-pesan ini tidak dipakai lagi, karena sekarang pesan status lebih dinamis)
 
 # ==============================================================================
 # ======================== FUNGSI-FUNGSI COMMAND HANDLER =======================
@@ -61,63 +39,40 @@ ERROR_MESSAGES = {
 
 async def start(update: Update, context: CallbackContext) -> None:
     welcome_message = """
-<b>Selamat datang di Berro Downloader!</b> 
+🤟 <b>Yo, bro! Kenalin, Berro Downloader.</b>
 
-Saya bisa mengunduh video & audio dari:
-- YouTube (video biasa/shorts)
-- TikTok (termasuk link singkat)
-- Facebook (reels/feed videos)
-- Instagram (reels/feed)
+Gue siap bantu sikat video & musik dari:
+- YouTube
+- TikTok
+- Instagram
+- Facebook
 
-<b>Cara Pakai:</b>
-Kirim link video yang ingin diunduh, dan saya akan mengirimkan file video (MP4) dan audionya (MP3) secara otomatis.
+Langsung aja kirim link-nya ke gue, nanti gue kirim balik file video (MP4) sama audionya (MP3). Simpel, kan?
 
-Tekan /help untuk bantuan lebih lanjut.
+Kalau butuh bantuan, ketik /help.
 """
     await update.message.reply_text(welcome_message, parse_mode='HTML')
 
 async def help_command(update: Update, context: CallbackContext) -> None:
     help_text = """
-<b> Bantuan Penggunaan Bot</b>
+🤔 <b>Butuh Bantuan? Tenang, gue bantu.</b>
 
-<b>Perintah yang tersedia:</b>
-/start - Memulai bot dan menampilkan pesan selamat datang
-/help - Menampilkan pesan bantuan ini
-/status - Memeriksa status bot
+<b>Perintah Dasar:</b>
+/start - Sapa gue lagi
+/help - Nampilin pesan ini
 
-<b>Pemecahan Masalah:</b>
-1. Jika media gagal diunduh:
-   - Pastikan link benar dan video bersifat publik.
-   - Coba lagi setelah beberapa saat.
+<b>Kalau Gagal Download:</b>
+1.  <b>Cek Link</b>: Pastiin link-nya bener dan videonya gak di-private.
+2.  <b>Coba Lagi</b>: Kadang server lagi sibuk, coba kirim ulang link-nya.
+3.  <b>Batas Ukuran</b>: Gue gak bisa kirim file di atas 50MB. Kalau videonya kepanjangan, kemungkinan gagal.
 
-2. Jika file terlalu besar:
-   - Bot tidak akan mengirim file di atas 50MB.
-   - Bot akan mencoba kompresi otomatis untuk video jika memungkinkan.
-
-<b>Support:</b>
-Untuk pertanyaan lebih lanjut, hubungi @berrontosaurus
+Kalau masih ada masalah, kontak aja developernya di @berrontosaurus. Santai!
 """
     await update.message.reply_text(help_text, parse_mode='HTML')
-
-async def status_command(update: Update, context: CallbackContext) -> None:
-    status_message = """
-<b> Status Bot</b>
-
-<b>Versi:</b> 2.3 (Alur Pesan Baru)
-<b>Status:</b> Online 
-<b>Update Terakhir:</b> {}
-""".format(datetime.now().strftime("%d %B %Y"))
-    await update.message.reply_text(status_message, parse_mode='HTML')
 
 # ==============================================================================
 # ======================== FUNGSI-FUNGSI BANTUAN (HELPERS) =====================
 # ==============================================================================
-
-def get_random_loading_message():
-    return random.choice(LOADING_MESSAGES)
-
-def get_random_completion_message():
-    return random.choice(COMPLETION_MESSAGES)
 
 async def get_video_metadata(url: str) -> dict | None:
     logger.info(f"Mengambil metadata untuk URL: {url}")
@@ -125,7 +80,7 @@ async def get_video_metadata(url: str) -> dict | None:
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-        title = info.get('title', 'Judul Tidak Tersedia')
+        title = info.get('title', 'Judul Tidak Ditemukan')
         description = info.get('description', '')
         hashtags = info.get('hashtags', [])
         if not hashtags:
@@ -185,7 +140,7 @@ async def compress_video(input_path: str) -> str | None:
         return None
 
 # ==============================================================================
-# ======================== FUNGSI BARU UNTUK DOWNLOAD AUDIO ====================
+# ======================== FUNGSI DOWNLOAD AUDIO & VIDEO =======================
 # ==============================================================================
 
 async def download_audio_only(url: str) -> str | None:
@@ -212,15 +167,8 @@ async def download_audio_only(url: str) -> str | None:
         logger.error(f"Error saat download audio: {e}")
         return None
 
-# ==============================================================================
-# ======================== FUNGSI DOWNLOAD VIDEO LAMA ANDA =====================
-# ==============================================================================
-
-async def download_youtube(url: str) -> str | None:
-    return await download_youtube_ytdlp(url)
-
-async def download_youtube_ytdlp(url: str) -> str | None:
-    logger.info(f"Memulai download VIDEO (yt-dlp) untuk: {url}")
+async def download_video(url: str) -> str | None:
+    logger.info(f"Memulai download VIDEO untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
@@ -228,77 +176,18 @@ async def download_youtube_ytdlp(url: str) -> str | None:
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
         'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
-        'cookiefile': 'youtube_cookies.txt',
+        'cookiefile': 'youtube_cookies.txt', # Juga berlaku untuk platform lain
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             return ydl.prepare_filename(info)
     except Exception as e:
-        logger.error(f"Error download_youtube_ytdlp: {e}")
-        return None
-
-async def download_tiktok(url: str) -> str | None:
-    return await download_tiktok_ytdlp(url)
-
-async def download_tiktok_ytdlp(url: str) -> str | None:
-    logger.info(f"Memulai download VIDEO (yt-dlp) untuk: {url}")
-    unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'outtmpl': f'downloads/{unique_id}.%(ext)s',
-        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
-        'merge_output_format': 'mp4',
-        'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            return ydl.prepare_filename(info)
-    except Exception as e:
-        logger.error(f"Error download_tiktok_ytdlp: {e}")
-        return None
-
-async def download_facebook(url: str) -> str | None:
-    logger.info(f"Memulai download VIDEO (yt-dlp) untuk: {url}")
-    unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'outtmpl': f'downloads/{unique_id}.%(ext)s',
-        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
-        'merge_output_format': 'mp4',
-        'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
-        'cookiefile': 'facebook_cookies.txt',
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            return ydl.prepare_filename(info)
-    except Exception as e:
-        logger.error(f"Error download_facebook: {e}")
-        return None
-
-async def download_instagram(url: str) -> str | None:
-    logger.info(f"Memulai download VIDEO (yt-dlp) untuk: {url}")
-    unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'outtmpl': f'downloads/{unique_id}.%(ext)s',
-        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
-        'merge_output_format': 'mp4',
-        'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
-        'cookiefile': 'instagram_cookies.txt',
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            return ydl.prepare_filename(info)
-    except Exception as e:
-        logger.error(f"Error download_instagram: {e}")
+        logger.error(f"Error download_video: {e}")
         return None
 
 # ==============================================================================
-# ======================== HANDLER UTAMA (DIRUBAH TOTAL) =======================
+# ======================== HANDLER UTAMA (YANG SUDAH CEREWET) ==================
 # ==============================================================================
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
@@ -306,28 +195,25 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     if not re.match(r'https?://', url):
         return
 
-    processing_msg = await update.message.reply_text(f"{get_random_loading_message()}")
+    # --- UPDATE: Pesan status yang lebih hidup ---
+    processing_msg = await update.message.reply_text("Oke, link diterima! Gue cek dulu ya... 🤔")
+    await asyncio.sleep(1)
 
     metadata = await get_video_metadata(url)
-    title = metadata['title'] if metadata and metadata.get('title') else "Media"
-    hashtags = metadata['hashtags'] if metadata and metadata.get('hashtags') else []
-    
-    video_downloader_func = None
-    if 'youtube.com' in url or 'youtu.be' in url:
-        video_downloader_func = download_youtube(url)
-    elif 'tiktok.com' in url or 'vt.tiktok.com' in url:
-        video_downloader_func = download_tiktok(url)
-    elif is_facebook_url(url):
-        video_downloader_func = download_facebook(url)
-    elif is_instagram_url(url):
-        video_downloader_func = download_instagram(url)
-    else:
-        await processing_msg.edit_text("❌ Format link tidak dikenali.")
+    if not metadata or not metadata.get('title'):
+        await processing_msg.edit_text("Waduh, gue gak bisa dapetin info dari link itu, bro. Coba link lain ya.")
         return
+        
+    title = metadata['title']
+    hashtags = metadata.get('hashtags', [])
+    
+    await processing_msg.edit_text(f"✅ Siip, ketemu! Judulnya: \"<i>{title[:50]}...</i>\".\n\nSekarang, gue sikat file video sama audionya. Sabar bentar... 🚀", parse_mode='HTML')
+    await asyncio.sleep(2)
 
+    # Jalankan download video dan audio secara bersamaan
+    video_downloader_func = download_video(url)
     audio_downloader_func = download_audio_only(url)
     
-    await processing_msg.edit_text("📥 Mengunduh video dan audio...")
     results = await asyncio.gather(video_downloader_func, audio_downloader_func, return_exceptions=True)
     video_path, audio_path = results
 
@@ -337,63 +223,64 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
     try:
         if not files_to_delete:
-            await processing_msg.edit_text("❌ Gagal mengunduh media. Link mungkin tidak valid atau video bersifat pribadi.")
+            await processing_msg.edit_text("❌ Gagal total, bro. Kayaknya link-nya bermasalah atau videonya private.")
             return
 
-        await processing_msg.delete() # Hapus pesan "memproses" lebih awal
-
-        # Siapkan semua string pesan
-        hashtags_text = ' '.join([f'#{tag}' for tag in hashtags])
-        video_size_text = f"Ukuran Video: {os.path.getsize(video_path)/1024/1024:.1f}MB" if isinstance(video_path, str) and os.path.exists(video_path) else ""
-        audio_size_text = f"Ukuran Audio: {os.path.getsize(audio_path)/1024/1024:.1f}MB" if isinstance(audio_path, str) and os.path.exists(audio_path) else ""
-
-        # --- Alur Pengiriman Pesan Sesuai Permintaan ---
-
-        # 1. Kirim Video dengan Caption Lengkap
+        await processing_msg.edit_text("🎁 Udah kelar! Lagi gue bungkus buat dikirim ke elu...")
+        await asyncio.sleep(1)
+        
+        # Kirim Video
         if isinstance(video_path, str) and os.path.exists(video_path):
             final_video_path = video_path
             caption_suffix = ""
             if os.path.getsize(video_path) > TELEGRAM_MAX_SIZE:
+                await update.message.reply_text("Videonya kegedean nih (diatas 50MB), gue coba kecilin dulu ya...")
                 compressed_path = await compress_video(video_path)
                 if compressed_path and os.path.getsize(compressed_path) <= TELEGRAM_MAX_SIZE:
                     final_video_path = compressed_path
                     files_to_delete.append(compressed_path)
-                    caption_suffix = " (dikompres)"
+                    caption_suffix = " (udah dikecilin)"
                 else:
-                    await update.message.reply_text(f"🎬 Video terlalu besar untuk dikirim (batas 50MB).")
+                    await update.message.reply_text(f"🎬 Waduh, gagal dikecilin bro. Videonya terlalu besar.")
                     final_video_path = None
             
             if final_video_path:
-                video_full_caption = (
-                    f"<b>{title}{caption_suffix}</b>\n\n"
-                    f"<i>{hashtags_text}</i>\n\n"
-                    f"{get_random_completion_message()}\n"
-                    f"{video_size_text}\n"
-                    f"<a href='{url.split('?')[0]}'>Link Asli</a>"
-                )
                 with open(final_video_path, 'rb') as video_file:
-                    await update.message.reply_video(video=video_file, caption=video_full_caption, parse_mode='HTML')
+                    await update.message.reply_video(video=video_file, caption=f"🎬 Nih videonya, bro!{caption_suffix}")
         else:
-            logger.error(f"Proses video gagal atau file tidak ditemukan: {video_path}")
+            await update.message.reply_text("Maaf, file videonya gagal diproses. 😔")
 
-        # 2. Kirim Audio
+        # Kirim Audio
         if isinstance(audio_path, str) and os.path.exists(audio_path):
             if os.path.getsize(audio_path) > TELEGRAM_MAX_SIZE:
-                await update.message.reply_text(f"🎵 Audio terlalu besar untuk dikirim (batas 50MB).")
+                await update.message.reply_text(f"🎵 Audionya juga kegedean nih, gak bisa dikirim.")
             else:
                 with open(audio_path, 'rb') as audio_file:
-                    await update.message.reply_audio(audio=audio_file, title=title)
+                    await update.message.reply_audio(audio=audio_file, title=title, caption="🎧 Musiknya, bro!")
         else:
-            logger.error(f"Proses audio gagal atau file tidak ditemukan: {audio_path}")
-
-        # 3. Kirim Pesan Teks Terpisah (Judul + Tag)
-        title_hashtag_message = f"<b>{title}</b>\n<i>{hashtags_text}</i>"
-        await update.message.reply_text(text=title_hashtag_message, parse_mode='HTML')
+            await update.message.reply_text("Maaf, file audionya gagal diproses. 😔")
+        
+        # Kirim Pesan Info Terpisah
+        hashtags_text = ' '.join([f'#{tag}' for tag in hashtags])
+        
+        video_size_text = f"Ukuran Video: {os.path.getsize(video_path)/1024/1024:.1f}MB" if isinstance(video_path, str) and os.path.exists(video_path) else "Ukuran Video: Gagal diproses"
+        audio_size_text = f"Ukuran Audio: {os.path.getsize(audio_path)/1024/1024:.1f}MB" if isinstance(audio_path, str) and os.path.exists(audio_path) else "Ukuran Audio: Gagal diproses"
+            
+        info_message = (
+            f"<b>{title}</b>\n\n"
+            f"<i>{hashtags_text}</i>\n\n"
+            f"--- DETAIL ---\n"
+            f"✅ {video_size_text}\n"
+            f"✅ {audio_size_text}\n"
+            f"🔗 <a href='{url.split('?')[0]}'>Link Asli</a>"
+        )
+        await update.message.reply_text(text=info_message, parse_mode='HTML', disable_web_page_preview=True)
             
     except Exception as e:
         logger.error(f"Gagal mengirim file: {e}")
-        await update.message.reply_text("Terjadi kesalahan saat mengirim file.")
+        await update.message.reply_text("Waduh, ada error pas ngirim file. Coba lagi nanti ya.")
     finally:
+        await processing_msg.delete()
         for file_path in files_to_delete:
             if os.path.exists(file_path):
                 try:
@@ -418,7 +305,6 @@ def main() -> None:
     # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("status", status_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Bot dimulai...")
