@@ -394,7 +394,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
         # 3. Kirim Pesan Teks Terpisah (Judul + Tag)
         hashtags_text_only = ' '.join([f'#{tag}' for tag in hashtags])
-        title_hashtag_message = f"{title}\n\n{hashtags_text_only}"
+        title_hashtag_message = f"{title}{hashtags_text_only}"
         await update.message.reply_text(text=title_hashtag_message)
             
     except Exception as e:
