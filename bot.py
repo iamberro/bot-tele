@@ -378,7 +378,7 @@ async def handle_link(update: Update, context: CallbackContext) -> None:
     processing_msg = await update.message.reply_text("Siaap! Gue intip dulu link-nya ya... 🕵️‍♂️")
 
     # Simpan pesan ini untuk diedit nanti oleh handler lain
-    context.chat_data['processing_message_id'] = processing_msg.message_id
+    context.chat_data['current_url'] = url
 
     # Opsi yt-dlp hanya untuk mengambil informasi, bukan download
     ydl_opts = {'quiet': True, 'skip_download': True, 'noplaylist': True}
@@ -406,7 +406,7 @@ async def handle_link(update: Update, context: CallbackContext) -> None:
 
         # Pilihan Audio MP3 (selalu ada)
         # Format callback_data: "download|audio|URL_ASLI"
-        buttons.append([InlineKeyboardButton("🎵 Audio (MP3 Kualitas Terbaik)", callback_data=f"download|audio|{url}")])
+        buttons.append([InlineKeyboardButton("🎵 Audio (MP3 Kualitas Terbaik)", callback_data="download|audio")])
         
         # Filter dan urutkan format video MP4
         video_formats = [
@@ -422,9 +422,9 @@ async def handle_link(update: Update, context: CallbackContext) -> None:
             if height and height not in added_heights:
                 filesize_mb = f.get('filesize', 0) / 1024 / 1024
                 format_id = f.get('format_id')
-                # Format callback_data: "download|format_id|URL_ASLI"
+                # 3. Hapus URL dari callback_data. Cukup "download|format_id"
                 buttons.append([
-                    InlineKeyboardButton(f"🎥 Video ({height}p) - {filesize_mb:.1f} MB", callback_data=f"download|{format_id}|{url}")
+                    InlineKeyboardButton(f"🎥 Video ({height}p) - {filesize_mb:.1f} MB", callback_data=f"download|{format_id}")
                 ])
                 added_heights.add(height)
                 if len(added_heights) >= 3:
@@ -453,9 +453,15 @@ async def handle_download_choice(update: Update, context: CallbackContext) -> No
     query = update.callback_query
     await query.answer()
 
+    # 1. Ambil URL dari context
+    url = context.chat_data.get('current_url')
+    if not url:
+        await query.edit_message_text("Waduh, sesi ini udah kedaluwarsa, Bro. Coba kirim ulang link-nya ya.")
+        return
+
     # Ambil data dari tombol yang ditekan
     data = query.data
-    _, choice, url = data.split('|', 2)
+    _, choice = data.split('|', 1)
     
     # Ambil judul dari context
     title = context.chat_data.get('video_title', 'Judul Tidak Tersedia')
