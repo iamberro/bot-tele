@@ -57,20 +57,29 @@ COMPLETION_MESSAGES = [
 
 async def start(update: Update, context: CallbackContext) -> None:
     welcome_message = """
-<b>Wihh, ada yang mau download nih!</b> 🤙
+<pre>
+██╗  ██╗███████╗██╗     ██╗      ██████╗ ██╗
+██║  ██║██╔════╝██║     ██║     ██╔═══██╗██║
+███████║█████╗  ██║     ██║     ██║   ██║██║
+██╔══██║██╔══╝  ██║     ██║     ██║   ██║╚═╝
+██║  ██║███████╗███████╗███████╗╚██████╔╝██╗
+</pre>
+<b>Yoo, whats up bro!</b> 🤙
 
-Kenalin, gue <b>Berro</b>, asisten download paling sabi se-Telegram! 😎
+Kenalin, gue <b>Bot Berro</b>, partner download lo yang paling gercep ⚡ dan paling asique se-antero Telegram!
 
-Gue bisa nyedot video & audio dari:
-- 🎬 YouTube (biasa, shorts, semua bisa!)
-- 🕺 TikTok (link panjang pendek, sikat!)
-- 👨‍👩‍👧‍👦 Facebook (reels, video biasa, hajar!)
-- 📸 Instagram (reels, postingan, libas!)
+Gue siap sedot video atau audio dari mana aja:
+🔴 <b>YouTube</b>: Video biasa, shorts, sampe playlist... sikaaat!
+⚫️ <b>TikTok</b>: Link standar, link aneh... semua gue lahap!
+🟣 <b>Instagram</b>: Reels, IGTV, foto-foto... amankeuun!
+🔵 <b>Facebook</b>: Video, reels, siaran langsung... hajar bleh!
 
-<b>Gampang banget caranya:</b>
-Cukup lempar link video yang lu mau, terus duduk manis. Ntar gue sulap jadi file MP4 & MP3 buat lu! ✨
+<b>Caranya? Cuma 3 langkah santuy:</b>
+1️⃣ Lempar link-nya ke gue
+2️⃣ Tunggu bentar sambil ngopi ☕
+3️⃣ Voila! ✨ File MP3 & MP4 langsung jadi!
 
-Gaskeun! 👇
+Tunggu apa lagi? Langsung aja lempar link pertama lo! Gaskeun! 🔥👇
 """
     await update.message.reply_text(welcome_message, parse_mode='HTML')
 
@@ -100,12 +109,21 @@ Langsung aja colek bos gue di @berrontosaurus.
 
 async def status_command(update: Update, context: CallbackContext) -> None:
     status_message = f"""
-<b>Cek kondisi gue, nih!</b> 🤙
+<pre>
+███████╗████████╗ █████╗ ████████╗██╗   ██╗███████╗
+██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║   ██║██╔════╝
+███████╗   ██║   ███████║   ██║   ██║   ██║███████╗
+╚════██║   ██║   ██╔══██║   ██║   ██║   ██║╚════██║
+███████║   ██║   ██║  ██║   ██║   ╚██████╔╝███████║
+</pre>
+<b>Laporan situasi terkini dari markas!</b> 📣
 
-<b>🤖 Nama Bot:</b> Berro Downloader
-<b>🔥 Kondisi:</b> On fire, siap tempur 24/7!
-<b>✨ Versi:</b> 2.5 (Mode Bawel Asyique)
-<b>🗓️ Update Terakhir:</b> {datetime.now().strftime("%d %B %Y")}
+🤖 <b>Nama Bot:</b> Berro Downloader
+✅ <b>Status:</b> ONLINE & SIAP BERAKSI! 💨
+⚙️ <b>Versi:</b> 2.5 (Mode Bawel Asyique)
+🧠 <b>Otak Gue:</b> Baru di-upgrade pada {datetime.now().strftime("%d %B %Y")}
+
+Gue siap menerima perintah, Komandan! 👇
 """
     await update.message.reply_text(status_message, parse_mode='HTML')
 
