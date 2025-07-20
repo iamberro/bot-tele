@@ -182,21 +182,38 @@ async def compress_video(input_path: str) -> str | None:
         original_size = os.path.getsize(input_path)
         if original_size <= TELEGRAM_MAX_SIZE:
             return input_path
-        logger.info(f"File video terlalu besar ({original_size / 1024 / 1024:.2f}MB), mengompres...")
+        
+        logger.info(f"File video terlalu besar ({original_size / 1024 / 1024:.2f}MB), mengompres dengan cepat...")
+        
         command = [
             imageio_ffmpeg.get_ffmpeg_exe(), '-i', input_path,
-            '-c:v', 'libx264', '-preset', 'fast', '-crf', '28',
-            '-vf', 'scale=-2:720', '-movflags', '+faststart',
-            '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',  # <-- DIUBAH DARI 'fast' KE 'veryfast' UNTUK KECEPATAN
+            '-crf', '28',
+            '-vf', 'scale=-2:720',
+            '-movflags', '+faststart',
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac',
+            '-b:a', '96k',
             '-y', output_path
         ]
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        
+        # Menjalankan kompresi di thread terpisah agar tidak memblokir bot
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            logger.error(f"FFmpeg error saat kompresi: {stderr.decode()}")
+            return None
+
         if os.path.exists(output_path):
             logger.info(f"Kompresi berhasil, ukuran baru: {os.path.getsize(output_path) / 1024 / 1024:.2f}MB")
             return output_path
-        return None
-    except subprocess.CalledProcessError as e:
-        logger.error(f"FFmpeg error saat kompresi: {e.stderr.decode()}")
+            
         return None
     except Exception as e:
         logger.error(f"Error kompresi: {str(e)}")
