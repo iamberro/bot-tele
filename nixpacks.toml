@@ -4,4 +4,4 @@
 pkgs = ["ffmpeg"]
 
 [start]
-cmd = "python main.py"
+cmd = "python bot.py"
