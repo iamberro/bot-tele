@@ -120,7 +120,20 @@ def get_random_completion_message():
 
 async def get_video_metadata(url: str) -> dict | None:
     logger.info(f"Mengambil metadata untuk URL: {url}")
-    ydl_opts = {'quiet': True, 'skip_download': True, 'cookiefile': 'youtube_cookies.txt'}
+
+    # Tentukan file cookies berdasarkan URL
+    cookie_file = None
+    if 'instagram.com' in url:
+        cookie_file = 'instagram_cookies.txt'
+    elif 'facebook.com' in url or 'fb.watch' in url:
+        cookie_file = 'facebook_cookies.txt'
+    elif 'youtube.com' in url or 'youtu.be' in url:
+        cookie_file = 'youtube_cookies.txt'
+
+    ydl_opts = {'quiet': True, 'skip_download': True}
+    if cookie_file and os.path.exists(cookie_file):
+        ydl_opts['cookiefile'] = cookie_file
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -215,7 +228,7 @@ async def download_youtube(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (YouTube) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -234,7 +247,7 @@ async def download_tiktok(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (TikTok) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -252,7 +265,7 @@ async def download_facebook(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (Facebook) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -271,7 +284,7 @@ async def download_instagram(url: str) -> str | None:
     logger.info(f"Memulai download VIDEO (Instagram) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': '(bv[height<=1080][ext=mp4]+ba[ext=m4a])/(b[ext=mp4][height<=720])/best[ext=mp4]/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
@@ -360,7 +373,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 video_full_caption = (
                     f"<b>{title}{caption_suffix}</b>\n\n"
                     f"<i>{hashtags_text}</i>\n\n"
-                    f"{get_random_completion_message()}\n"
+                    f"{get_random_completion_message()}\n" # <-- HAPUS BARIS INI
                     f"{video_size_text}\n"
                     f"<a href='{url.split('?')[0]}'>Link Asli</a>"
                 )
