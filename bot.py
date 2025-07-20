@@ -127,23 +127,25 @@ def generate_progress_bar(percent):
 async def get_video_metadata(url: str) -> dict | None:
     logger.info(f"Mengambil metadata untuk URL: {url}")
 
-    cookie_file = None
-    # --- LOGIKA DIPERBAIKI DI SINI ---
-    if 'instagram.com' in url:
-        cookie_file = 'instagram_cookies.txt'
-    elif 'facebook.com' in url or 'fb.watch' in url:
-        cookie_file = 'facebook_cookies.txt'
-    elif 'http://googleusercontent.com/youtube.com/' in url: # <-- Cukup cek domain utamanya
-        cookie_file = 'youtube_cookies.txt'
-
     ydl_opts = {'quiet': True, 'skip_download': True}
-    if cookie_file and os.path.exists(cookie_file):
-        logger.info(f"Menggunakan cookie file: {cookie_file}")
-        ydl_opts['cookiefile'] = cookie_file
+    
+    # --- LOGIKA PALING BENAR & SIMPEL ---
+    # Jika URL mengandung 'youtube' atau 'youtu.be', paksa gunakan cookie YouTube.
+    if 'youtube.com' in url or 'youtu.be' in url or 'googleusercontent.com/youtube.com' in url:
+        if os.path.exists('youtube_cookies.txt'):
+            logger.info("Memakai cookies YouTube untuk metadata.")
+            ydl_opts['cookiefile'] = 'youtube_cookies.txt'
+    elif 'instagram.com' in url:
+        if os.path.exists('instagram_cookies.txt'):
+            logger.info("Memakai cookies Instagram untuk metadata.")
+            ydl_opts['cookiefile'] = 'instagram_cookies.txt'
+    elif 'facebook.com' in url or 'fb.watch' in url:
+        if os.path.exists('facebook_cookies.txt'):
+            logger.info("Memakai cookies Facebook untuk metadata.")
+            ydl_opts['cookiefile'] = 'facebook_cookies.txt'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Menggunakan to_thread agar tidak memblokir event loop
             info = await asyncio.to_thread(ydl.extract_info, url, download=False)
         title = info.get('title', 'Judul Tidak Tersedia')
         description = info.get('description', '')
@@ -229,15 +231,6 @@ async def download_audio_only(url: str) -> str | None:
     logger.info(f"Memulai download AUDIO untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     
-    cookie_file = None
-    # --- LOGIKA DIPERBAIKI DI SINI ---
-    if 'instagram.com' in url:
-        cookie_file = 'instagram_cookies.txt'
-    elif 'facebook.com' in url or 'fb.watch' in url:
-        cookie_file = 'facebook_cookies.txt'
-    elif 'http://googleusercontent.com/youtube.com/' in url: # <-- Cukup cek domain utamanya
-        cookie_file = 'youtube_cookies.txt'
-
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
@@ -246,9 +239,19 @@ async def download_audio_only(url: str) -> str | None:
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
     }
     
-    if cookie_file and os.path.exists(cookie_file):
-        logger.info(f"Menggunakan cookie file untuk audio: {cookie_file}")
-        ydl_opts['cookiefile'] = cookie_file
+    # --- LOGIKA PALING BENAR & SIMPEL ---
+    if 'youtube.com' in url or 'youtu.be' in url or 'googleusercontent.com/youtube.com' in url:
+        if os.path.exists('youtube_cookies.txt'):
+            logger.info("Memakai cookies YouTube untuk audio.")
+            ydl_opts['cookiefile'] = 'youtube_cookies.txt'
+    elif 'instagram.com' in url:
+        if os.path.exists('instagram_cookies.txt'):
+            logger.info("Memakai cookies Instagram untuk audio.")
+            ydl_opts['cookiefile'] = 'instagram_cookies.txt'
+    elif 'facebook.com' in url or 'fb.watch' in url:
+        if os.path.exists('facebook_cookies.txt'):
+            logger.info("Memakai cookies Facebook untuk audio.")
+            ydl_opts['cookiefile'] = 'facebook_cookies.txt'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -273,18 +276,21 @@ async def download_youtube(url: str, progress_hook=None) -> str | None:
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'merge_output_format': 'mp4',
         'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
-        'cookiefile': 'youtube_cookies.txt',
         'progress_hooks': [progress_hook] if progress_hook else [],
     }
+    # --- LOGIKA PALING BENAR & SIMPEL ---
+    if os.path.exists('youtube_cookies.txt'):
+        logger.info("Memakai cookies YouTube untuk video.")
+        ydl_opts['cookiefile'] = 'youtube_cookies.txt'
+        
     try:
-        # Menjalankan download di thread terpisah agar tidak memblokir bot
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = await asyncio.to_thread(ydl.extract_info, url, download=True)
             return ydl.prepare_filename(info)
     except Exception as e:
         logger.error(f"Error download_youtube: {e}")
         return None
-
+    
 async def download_tiktok(url: str, progress_hook=None) -> str | None:
     logger.info(f"Memulai download VIDEO (TikTok) untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
@@ -416,20 +422,19 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     # (Sisa kode handle_message lainnya tetap sama seperti sebelumnya)
     # ... (lanjutkan dengan blok "Tentukan Fungsi Download", "Eksekusi Download & Kirim File", dst.)
     # ... (Tidak perlu mengubah bagian setelah ini, karena sudah benar)
-    # --- 3. Tentukan Fungsi Download ---
-    downloader_map = {
-        'http://googleusercontent.com/youtube.com/': download_youtube,
-        'tiktok.com': download_tiktok,
-        'facebook.com': download_facebook,
-        'fb.watch': download_facebook,
-        'instagram.com': download_instagram,
-    }
-
+    # --- 3. Tentukan Fungsi Download (VERSI PALING AMAN) ---
     video_downloader_func = None
-    for domain, func in downloader_map.items():
-        if domain in url:
-            video_downloader_func = func
-            break
+    if 'http://googleusercontent.com/youtube.com/' in url or 'youtube.com' in url:
+        video_downloader_func = download_youtube
+    elif 'tiktok.com' in url or 'vt.tiktok.com' in url:
+        video_downloader_func = download_tiktok
+    elif is_facebook_url(url):
+        video_downloader_func = download_facebook
+    elif is_instagram_url(url):
+        video_downloader_func = download_instagram
+    else:
+        await processing_msg.edit_text("Waduh, platform ini belum gue kenal, bro. Coba link dari YouTube, TikTok, FB, atau IG ya! 🙏")
+        return
     
     if not video_downloader_func:
         await processing_msg.edit_text("Waduh, platform ini belum gue kenal, bro. Coba link dari YouTube, TikTok, FB, atau IG ya! 🙏")
