@@ -338,31 +338,32 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
     # --- 1. Tahap Awal: Cek Link & Metadata ---
     processing_msg = await update.message.reply_text("Siaap! Link-nya gue terima, laksanakan! Gue cekidot dulu yaa... 🕵️‍♂️")
-    
+
     metadata = await get_video_metadata(url)
     if not metadata or not metadata.get('title'):
         await processing_msg.edit_text("Waduh, error, Bro! Link-nya kayaknya aneh atau digembok nih. 🧐 Coba cari link lain yang publik, ya!")
         return
-        
+
     title = metadata['title']
     hashtags = metadata.get('hashtags', [])
-    
-    # --- 2. Setup Progress Hook ---
+
+    # --- 2. Setup Progress Hook (VERSI BARU YANG SUDAH DIPERBAIKI) ---
     last_update_time = 0
-    
-    async def progress_hook(d):
+    main_loop = asyncio.get_running_loop()
+
+    def sync_progress_hook(d):
         nonlocal last_update_time
         if d['status'] == 'downloading':
             current_time = time.time()
-            # Batasi update ke Telegram setiap 2 detik untuk menghindari rate limit
-            if current_time - last_update_time > 2:
+            if current_time - last_update_time > 2:  # Batasi update setiap 2 detik
                 try:
-                    percent = d['_percent_str'].strip().replace('%', '')
-                    progress_bar = generate_progress_bar(float(percent))
-                    downloaded = d['_downloaded_bytes_str']
-                    total = d['_total_bytes_str'] or 'N/A'
-                    speed = d['_speed_str']
-                    eta = d['_eta_str']
+                    percent_str = d.get('_percent_str', '0.0%').strip().replace('%', '')
+                    percent = float(percent_str)
+                    progress_bar = generate_progress_bar(percent)
+                    downloaded = d.get('_downloaded_bytes_str', 'N/A')
+                    total = d.get('_total_bytes_str', 'N/A')
+                    speed = d.get('_speed_str', 'N/A')
+                    eta = d.get('_eta_str', 'N/A')
 
                     status_text = (
                         f"<b>Nguuueeengg... Lagi nyedot video!</b> 🚀\n\n"
@@ -373,13 +374,23 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                         f"⏳ Estimasi: {eta}\n\n"
                         "Harap sabar ya, lagi gue perjuangin nih! 💪"
                     )
-                    await processing_msg.edit_text(text=status_text, parse_mode='HTML')
+                    # Menjalankan update teks secara thread-safe
+                    main_loop.call_soon_threadsafe(
+                        asyncio.create_task,
+                        processing_msg.edit_text(text=status_text, parse_mode='HTML')
+                    )
                     last_update_time = current_time
+                except (ValueError, KeyError) as e:
+                    logger.warning(f"Gagal parse progress data: {e} - Data: {d}")
                 except Exception as e:
                     logger.warning(f"Gagal update progress: {e}")
-        
+
         elif d['status'] == 'finished':
-            await processing_msg.edit_text("Mantap! Download video kelar. Sekarang gue gabungin sama audionya... 🪄")
+             # Menjalankan update teks secara thread-safe
+            main_loop.call_soon_threadsafe(
+                asyncio.create_task,
+                processing_msg.edit_text("Mantap! Download video kelar. Sekarang gue gabungin sama audionya... 🪄")
+            )
 
     # --- 3. Tentukan Fungsi Download ---
     downloader_map = {
@@ -389,13 +400,17 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         'fb.watch': download_facebook,
         'instagram.com': download_instagram,
     }
-    
+
     video_downloader_func = None
     for domain, func in downloader_map.items():
         if domain in url:
             video_downloader_func = func
             break
-            
+    
+    # Fallback untuk googleusercontent
+    if 'googleusercontent.com/youtube.com' in url:
+        video_downloader_func = download_youtube
+
     if not video_downloader_func:
         await processing_msg.edit_text("Waduh, platform ini belum gue kenal, bro. Coba link dari YouTube, TikTok, FB, atau IG ya! 🙏")
         return
@@ -406,8 +421,8 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     files_to_delete = []
 
     try:
-        # Jalankan download video dengan progress hook
-        video_path = await video_downloader_func(url, progress_hook=progress_hook)
+        # Menjalankan download video dengan progress hook
+        video_path = await video_downloader_func(url, progress_hook=sync_progress_hook)
         if video_path:
             files_to_delete.append(video_path)
             
@@ -435,7 +450,8 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     f"<a href='{url.split('?')[0]}'>Link Asli</a>"
                 )
                 with open(video_path, 'rb') as video_file:
-                    await update.message.reply_video(video=video_file, caption=video_full_caption, parse_mode='HTML', timeout=120)
+                    # Argumen 'timeout' sudah dihapus
+                    await update.message.reply_video(video=video_file, caption=video_full_caption, parse_mode='HTML')
 
         # Download dan kirim audio secara terpisah
         await processing_msg.edit_text("Sip, video udah kekirim! Sekarang giliran audionya... 🎶")
@@ -458,7 +474,11 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         await processing_msg.edit_text("Waduh, ada error misterius di tengah jalan, Bro! Coba lagi ya. 😭")
     finally:
         # Hapus pesan status dan file sementara
-        await processing_msg.delete()
+        try:
+            await processing_msg.delete()
+        except Exception:
+            pass # Abaikan jika pesan sudah terhapus
+        
         for file_path in files_to_delete:
             if os.path.exists(file_path):
                 try:
