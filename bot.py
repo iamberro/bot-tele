@@ -226,22 +226,40 @@ async def compress_video(input_path: str) -> str | None:
 async def download_audio_only(url: str) -> str | None:
     logger.info(f"Memulai download AUDIO untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
+    
+    # Logika untuk memilih cookie file yang benar
+    cookie_file = None
+    if 'instagram.com' in url:
+        cookie_file = 'instagram_cookies.txt'
+    elif 'facebook.com' in url or 'fb.watch' in url:
+        cookie_file = 'facebook_cookies.txt'
+    elif 'youtube.com' in url:
+        cookie_file = 'youtube_cookies.txt'
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': f'downloads/{unique_id}.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
         'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
-        'cookiefile': 'youtube_cookies.txt',
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
     }
+    
+    # Tambahkan cookie file jika ada dan filenya tersedia
+    if cookie_file and os.path.exists(cookie_file):
+        ydl_opts['cookiefile'] = cookie_file
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(url, download=True)
+            # Menjalankan download di thread terpisah agar tidak memblokir
+            await asyncio.to_thread(ydl.extract_info, url, download=True)
+            
         expected_path = f'downloads/{unique_id}.mp3'
         if os.path.exists(expected_path):
             return expected_path
+        # Fallback jika nama file tidak sesuai ekspektasi
         for file in os.listdir('downloads'):
-            if file.startswith(unique_id): return os.path.join('downloads', file)
+            if file.startswith(unique_id) and file.endswith('.mp3'):
+                return os.path.join('downloads', file)
         return None
     except Exception as e:
         logger.error(f"Error saat download audio: {e}")
@@ -337,7 +355,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         return
 
     # --- 1. Tahap Awal: Cek Link & Metadata ---
-    processing_msg = await update.message.reply_text("Siaap! Link-nya gue terima, laksanakan! Gue cekidot dulu yaa... 🕵️‍♂️")
+    processing_msg = await update.message.reply_text("Siaap! Link-nya gue terima, laksanakan! Cekidot dulu yaa... 🕵️‍♂️")
 
     metadata = await get_video_metadata(url)
     if not metadata or not metadata.get('title'):
@@ -349,10 +367,11 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
     # --- 2. Setup Progress Hook (VERSI BARU YANG SUDAH DIPERBAIKI) ---
     last_update_time = 0
+    last_status_text = "" # Variabel untuk menyimpan teks terakhir yang dikirim
     main_loop = asyncio.get_running_loop()
 
     def sync_progress_hook(d):
-        nonlocal last_update_time
+        nonlocal last_update_time, last_status_text
         if d['status'] == 'downloading':
             current_time = time.time()
             if current_time - last_update_time > 2:  # Batasi update setiap 2 detik
@@ -374,27 +393,35 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                         f"⏳ Estimasi: {eta}\n\n"
                         "Harap sabar ya, lagi gue perjuangin nih! 💪"
                     )
-                    # Menjalankan update teks secara thread-safe
-                    main_loop.call_soon_threadsafe(
-                        asyncio.create_task,
-                        processing_msg.edit_text(text=status_text, parse_mode='HTML')
-                    )
-                    last_update_time = current_time
-                except (ValueError, KeyError) as e:
-                    logger.warning(f"Gagal parse progress data: {e} - Data: {d}")
+                    
+                    # Cek apakah teksnya berubah sebelum mengedit pesan
+                    if status_text != last_status_text:
+                        main_loop.call_soon_threadsafe(
+                            asyncio.create_task,
+                            processing_msg.edit_text(text=status_text, parse_mode='HTML')
+                        )
+                        last_status_text = status_text # Update teks terakhir
+                        last_update_time = current_time
                 except Exception as e:
                     logger.warning(f"Gagal update progress: {e}")
 
         elif d['status'] == 'finished':
-             # Menjalankan update teks secara thread-safe
-            main_loop.call_soon_threadsafe(
-                asyncio.create_task,
-                processing_msg.edit_text("Mantap! Download video kelar. Sekarang gue gabungin sama audionya... 🪄")
-            )
-
+            finished_text = "Mantap! Download video kelar. Sekarang gue gabungin sama audionya... 🪄"
+            if finished_text != last_status_text:
+                main_loop.call_soon_threadsafe(
+                    asyncio.create_task,
+                    processing_msg.edit_text(finished_text)
+                )
+                last_status_text = finished_text
+    
+    # (Sisa kode handle_message lainnya tetap sama seperti sebelumnya)
+    # ... (lanjutkan dengan blok "Tentukan Fungsi Download", "Eksekusi Download & Kirim File", dst.)
+    # ... (Tidak perlu mengubah bagian setelah ini, karena sudah benar)
     # --- 3. Tentukan Fungsi Download ---
     downloader_map = {
         'youtube.com': download_youtube,
+        'youtu.be': download_youtube,
+        'https://youtube.com/shorts/obNvALGz7oo?si=NRd0jTr9VETBvCqh': download_youtube,
         'tiktok.com': download_tiktok,
         'facebook.com': download_facebook,
         'fb.watch': download_facebook,
@@ -407,10 +434,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             video_downloader_func = func
             break
     
-    # Fallback untuk googleusercontent
-    if 'googleusercontent.com/youtube.com' in url:
-        video_downloader_func = download_youtube
-
     if not video_downloader_func:
         await processing_msg.edit_text("Waduh, platform ini belum gue kenal, bro. Coba link dari YouTube, TikTok, FB, atau IG ya! 🙏")
         return
@@ -450,7 +473,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     f"<a href='{url.split('?')[0]}'>Link Asli</a>"
                 )
                 with open(video_path, 'rb') as video_file:
-                    # Argumen 'timeout' sudah dihapus
                     await update.message.reply_video(video=video_file, caption=video_full_caption, parse_mode='HTML')
 
         # Download dan kirim audio secara terpisah
