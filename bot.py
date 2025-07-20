@@ -127,13 +127,13 @@ def generate_progress_bar(percent):
 async def get_video_metadata(url: str) -> dict | None:
     logger.info(f"Mengambil metadata untuk URL: {url}")
 
-    # --- LOGIKA DIPERBAIKI DI SINI ---
     cookie_file = None
+    # --- LOGIKA DIPERBAIKI DI SINI ---
     if 'instagram.com' in url:
         cookie_file = 'instagram_cookies.txt'
     elif 'facebook.com' in url or 'fb.watch' in url:
         cookie_file = 'facebook_cookies.txt'
-    elif 'youtube.com' in url:  # Cukup cek domain utamanya
+    elif 'http://googleusercontent.com/youtube.com/' in url: # <-- Cukup cek domain utamanya
         cookie_file = 'youtube_cookies.txt'
 
     ydl_opts = {'quiet': True, 'skip_download': True}
@@ -143,7 +143,8 @@ async def get_video_metadata(url: str) -> dict | None:
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            # Menggunakan to_thread agar tidak memblokir event loop
+            info = await asyncio.to_thread(ydl.extract_info, url, download=False)
         title = info.get('title', 'Judul Tidak Tersedia')
         description = info.get('description', '')
         hashtags = info.get('hashtags', [])
@@ -228,13 +229,13 @@ async def download_audio_only(url: str) -> str | None:
     logger.info(f"Memulai download AUDIO untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     
-    # --- LOGIKA DIPERBAIKI DI SINI ---
     cookie_file = None
+    # --- LOGIKA DIPERBAIKI DI SINI ---
     if 'instagram.com' in url:
         cookie_file = 'instagram_cookies.txt'
     elif 'facebook.com' in url or 'fb.watch' in url:
         cookie_file = 'facebook_cookies.txt'
-    elif 'youtube.com' in url: # Cukup cek domain utamanya
+    elif 'http://googleusercontent.com/youtube.com/' in url: # <-- Cukup cek domain utamanya
         cookie_file = 'youtube_cookies.txt'
 
     ydl_opts = {
@@ -252,7 +253,6 @@ async def download_audio_only(url: str) -> str | None:
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             await asyncio.to_thread(ydl.extract_info, url, download=True)
-            
         expected_path = f'downloads/{unique_id}.mp3'
         if os.path.exists(expected_path):
             return expected_path
@@ -418,9 +418,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     # ... (Tidak perlu mengubah bagian setelah ini, karena sudah benar)
     # --- 3. Tentukan Fungsi Download ---
     downloader_map = {
-        'youtube.com': download_youtube,
-        'youtu.be': download_youtube,
-        'https://youtube.com/shorts/obNvALGz7oo?si=NRd0jTr9VETBvCqh': download_youtube,
+        'http://googleusercontent.com/youtube.com/': download_youtube,
         'tiktok.com': download_tiktok,
         'facebook.com': download_facebook,
         'fb.watch': download_facebook,
