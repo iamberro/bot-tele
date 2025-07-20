@@ -234,7 +234,7 @@ async def download_audio_only(url: str) -> str | None:
         cookie_file = 'instagram_cookies.txt'
     elif 'facebook.com' in url or 'fb.watch' in url:
         cookie_file = 'facebook_cookies.txt'
-    elif 'youtube.com' in url:
+    elif 'youtube.com' in url or 'youtu.be' in url:
         cookie_file = 'youtube_cookies.txt'
 
     ydl_opts = {
