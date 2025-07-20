@@ -127,17 +127,18 @@ def generate_progress_bar(percent):
 async def get_video_metadata(url: str) -> dict | None:
     logger.info(f"Mengambil metadata untuk URL: {url}")
 
-    # Tentukan file cookies berdasarkan URL
+    # --- LOGIKA DIPERBAIKI DI SINI ---
     cookie_file = None
     if 'instagram.com' in url:
         cookie_file = 'instagram_cookies.txt'
     elif 'facebook.com' in url or 'fb.watch' in url:
         cookie_file = 'facebook_cookies.txt'
-    elif 'youtube.com' in url or 'youtu.be' in url:
+    elif 'youtube.com' in url:  # Cukup cek domain utamanya
         cookie_file = 'youtube_cookies.txt'
 
     ydl_opts = {'quiet': True, 'skip_download': True}
     if cookie_file and os.path.exists(cookie_file):
+        logger.info(f"Menggunakan cookie file: {cookie_file}")
         ydl_opts['cookiefile'] = cookie_file
 
     try:
@@ -227,13 +228,13 @@ async def download_audio_only(url: str) -> str | None:
     logger.info(f"Memulai download AUDIO untuk: {url}")
     unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     
-    # Logika untuk memilih cookie file yang benar
+    # --- LOGIKA DIPERBAIKI DI SINI ---
     cookie_file = None
     if 'instagram.com' in url:
         cookie_file = 'instagram_cookies.txt'
     elif 'facebook.com' in url or 'fb.watch' in url:
         cookie_file = 'facebook_cookies.txt'
-    elif 'youtube.com' in url:
+    elif 'youtube.com' in url: # Cukup cek domain utamanya
         cookie_file = 'youtube_cookies.txt'
 
     ydl_opts = {
@@ -244,19 +245,17 @@ async def download_audio_only(url: str) -> str | None:
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
     }
     
-    # Tambahkan cookie file jika ada dan filenya tersedia
     if cookie_file and os.path.exists(cookie_file):
+        logger.info(f"Menggunakan cookie file untuk audio: {cookie_file}")
         ydl_opts['cookiefile'] = cookie_file
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Menjalankan download di thread terpisah agar tidak memblokir
             await asyncio.to_thread(ydl.extract_info, url, download=True)
             
         expected_path = f'downloads/{unique_id}.mp3'
         if os.path.exists(expected_path):
             return expected_path
-        # Fallback jika nama file tidak sesuai ekspektasi
         for file in os.listdir('downloads'):
             if file.startswith(unique_id) and file.endswith('.mp3'):
                 return os.path.join('downloads', file)
