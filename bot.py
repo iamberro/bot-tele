@@ -411,8 +411,9 @@ async def handle_link(update: Update, context: CallbackContext) -> None:
         # Filter dan urutkan format video MP4
         video_formats = [
             f for f in formats 
-            if f.get('vcodec') not in ['none', None] and f.get('acodec') not in ['none', None] and f.get('ext') == 'mp4' and f.get('filesize')
+            if f.get('vcodec') not in ['none', None] and f.get('ext') == 'mp4' and f.get('filesize')
         ]
+        # Kita hanya perlu memastikan ada videonya (vcodec), urusan audio (acodec) serahkan ke yt-dlp
         video_formats.sort(key=lambda f: f.get('height', 0), reverse=True)
 
         # Ambil maksimal 3 kualitas video unik untuk pilihan
