@@ -368,32 +368,109 @@ async def download_instagram(url: str, progress_hook=None) -> str | None:
 # ======================== HANDLER UTAMA (ALUR PESAN BARU) =====================
 # ==============================================================================
 
-async def handle_message(update: Update, context: CallbackContext) -> None:
+# --- FUNGSI 1: Menerima link dan menampilkan pilihan format ---
+async def handle_link(update: Update, context: CallbackContext) -> None:
+    """Dipanggil saat user mengirim link. Mengambil info format dan menampilkannya sebagai tombol."""
     url = update.message.text.strip()
     if not re.match(r'https?://', url):
         return
 
-    # --- 1. Tahap Awal: Cek Link & Metadata ---
-    processing_msg = await update.message.reply_text("Siaap! Link-nya gue terima, laksanakan! Cekidot dulu yaa... 🕵️‍♂️")
+    processing_msg = await update.message.reply_text("Siaap! Gue intip dulu link-nya ya... 🕵️‍♂️")
 
-    metadata = await get_video_metadata(url)
-    if not metadata or not metadata.get('title'):
-        await processing_msg.edit_text("Waduh, error, Bro! Link-nya kayaknya aneh atau digembok nih. 🧐 Coba cari link lain yang publik, ya!")
-        return
+    # Simpan pesan ini untuk diedit nanti oleh handler lain
+    context.chat_data['processing_message_id'] = processing_msg.message_id
 
-    title = metadata['title']
-    hashtags = metadata.get('hashtags', [])
+    # Opsi yt-dlp hanya untuk mengambil informasi, bukan download
+    ydl_opts = {'quiet': True, 'skip_download': True, 'noplaylist': True}
+    
+    # Tentukan cookie file jika perlu
+    cookie_file = None
+    if 'instagram.com' in url: cookie_file = 'instagram_cookies.txt'
+    elif 'facebook.com' in url or 'fb.watch' in url: cookie_file = 'facebook_cookies.txt'
+    elif 'youtube.com' in url or 'youtu.be' in url: cookie_file = 'youtube_cookies.txt'
+    
+    if cookie_file and os.path.exists(cookie_file):
+        ydl_opts['cookiefile'] = cookie_file
 
-    # --- 2. Setup Progress Hook (VERSI BARU YANG SUDAH DIPERBAIKI) ---
-    last_update_time = 0
-    last_status_text = "" # Variabel untuk menyimpan teks terakhir yang dikirim
+    try:
+        # Ambil semua info, termasuk format
+        logger.info(f"Mengambil info format untuk URL: {url}")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = await asyncio.to_thread(ydl.extract_info, url, download=False)
+        
+        title = info.get('title', 'Judul Tidak Tersedia')
+        context.chat_data['video_title'] = title # Simpan judul untuk nanti
+
+        formats = info.get('formats', [])
+        buttons = []
+
+        # Pilihan Audio MP3 (selalu ada)
+        # Format callback_data: "download|audio|URL_ASLI"
+        buttons.append([InlineKeyboardButton("🎵 Audio (MP3 Kualitas Terbaik)", callback_data=f"download|audio|{url}")])
+        
+        # Filter dan urutkan format video MP4
+        video_formats = [
+            f for f in formats 
+            if f.get('vcodec') not in ['none', None] and f.get('acodec') not in ['none', None] and f.get('ext') == 'mp4' and f.get('filesize')
+        ]
+        video_formats.sort(key=lambda f: f.get('height', 0), reverse=True)
+
+        # Ambil maksimal 3 kualitas video unik untuk pilihan
+        added_heights = set()
+        for f in video_formats:
+            height = f.get('height')
+            if height and height not in added_heights:
+                filesize_mb = f.get('filesize', 0) / 1024 / 1024
+                format_id = f.get('format_id')
+                # Format callback_data: "download|format_id|URL_ASLI"
+                buttons.append([
+                    InlineKeyboardButton(f"🎥 Video ({height}p) - {filesize_mb:.1f} MB", callback_data=f"download|{format_id}|{url}")
+                ])
+                added_heights.add(height)
+                if len(added_heights) >= 3:
+                    break
+
+        if len(buttons) <= 1: # Jika hanya ada pilihan audio
+            await processing_msg.edit_text("Waduh, nggak ada format video MP4 yang bisa gue download dari link itu, Bro. Cuma audio aja nih.")
+        
+        # Tambahkan tombol batal
+        buttons.append([InlineKeyboardButton("❌ Batalin Aja", callback_data="cancel_action")])
+
+        reply_markup = InlineKeyboardMarkup(buttons)
+        await processing_msg.edit_text(
+            f"<b>{title}</b>\n\nPilih format yang mau lo sikat, Bro:", 
+            reply_markup=reply_markup, 
+            parse_mode='HTML'
+        )
+
+    except Exception as e:
+        logger.error(f"Gagal mengambil format: {e}")
+        await processing_msg.edit_text("Waduh, error, Bro! Link-nya kayaknya aneh, digembok, atau platformnya lagi ngambek. 🧐")
+
+# --- FUNGSI 2: Menangani pilihan download dari user ---
+async def handle_download_choice(update: Update, context: CallbackContext) -> None:
+    """Dipanggil saat user menekan tombol format. Memulai proses download."""
+    query = update.callback_query
+    await query.answer()
+
+    # Ambil data dari tombol yang ditekan
+    data = query.data
+    _, choice, url = data.split('|', 2)
+    
+    # Ambil judul dari context
+    title = context.chat_data.get('video_title', 'Judul Tidak Tersedia')
+
+    # Setup progress hook
+    last_update_time = time.time()
+    last_status_text = ""
     main_loop = asyncio.get_running_loop()
+    processing_msg = query.message # Pesan yang akan di-edit
 
     def sync_progress_hook(d):
         nonlocal last_update_time, last_status_text
         if d['status'] == 'downloading':
             current_time = time.time()
-            if current_time - last_update_time > 2:  # Batasi update setiap 2 detik
+            if current_time - last_update_time > 2:
                 try:
                     percent_str = d.get('_percent_str', '0.0%').strip().replace('%', '')
                     percent = float(percent_str)
@@ -404,129 +481,113 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     eta = d.get('_eta_str', 'N/A')
 
                     status_text = (
-                        f"<b>Nguuueeengg... Lagi nyedot video!</b> 🚀\n\n"
+                        f"<b>Nguuueeengg... Lagi nyedot file!</b> 🚀\n\n"
                         f"Judul: <i>{title[:30]}...</i>\n\n"
                         f"<b>{progress_bar}</b>\n\n"
                         f"📦 {downloaded} / {total}\n"
-                        f"⚡️ {speed}\n"
-                        f"⏳ Estimasi: {eta}\n\n"
-                        "Harap sabar ya, lagi gue perjuangin nih! 💪"
+                        f"⚡️ {speed} | ⏳ Estimasi: {eta}"
                     )
                     
-                    # Cek apakah teksnya berubah sebelum mengedit pesan
                     if status_text != last_status_text:
+                        # Menggunakan call_soon_threadsafe untuk edit pesan dari thread lain
                         main_loop.call_soon_threadsafe(
                             asyncio.create_task,
                             processing_msg.edit_text(text=status_text, parse_mode='HTML')
                         )
-                        last_status_text = status_text # Update teks terakhir
+                        last_status_text = status_text
                         last_update_time = current_time
                 except Exception as e:
                     logger.warning(f"Gagal update progress: {e}")
-
+        
         elif d['status'] == 'finished':
-            finished_text = "Mantap! Download video kelar. Sekarang gue gabungin sama audionya... 🪄"
+            finished_text = "Mantap! Download kelar. Lagi gue proses bentar... 🪄"
             if finished_text != last_status_text:
-                main_loop.call_soon_threadsafe(
+                 main_loop.call_soon_threadsafe(
                     asyncio.create_task,
                     processing_msg.edit_text(finished_text)
                 )
-                last_status_text = finished_text
-    
-    # (Sisa kode handle_message lainnya tetap sama seperti sebelumnya)
-    # ... (lanjutkan dengan blok "Tentukan Fungsi Download", "Eksekusi Download & Kirim File", dst.)
-    # ... (Tidak perlu mengubah bagian setelah ini, karena sudah benar)
-    # --- 3. Tentukan Fungsi Download ---
-    downloader_map = {
-        'youtube.com': download_youtube,
-        'youtu.be': download_youtube,
-        'https://youtube.com/shorts/obNvALGz7oo?si=NRd0jTr9VETBvCqh': download_youtube,
-        'tiktok.com': download_tiktok,
-        'facebook.com': download_facebook,
-        'fb.watch': download_facebook,
-        'instagram.com': download_instagram,
-    }
+                 last_status_text = finished_text
 
-    video_downloader_func = None
-    for domain, func in downloader_map.items():
-        if domain in url:
-            video_downloader_func = func
-            break
-    
-    if not video_downloader_func:
-        await processing_msg.edit_text("Waduh, platform ini belum gue kenal, bro. Coba link dari YouTube, TikTok, FB, atau IG ya! 🙏")
-        return
-
-    # --- 4. Eksekusi Download & Kirim File ---
-    video_path = None
-    audio_path = None
-    files_to_delete = []
-
+    file_path = None
     try:
-        # Menjalankan download video dengan progress hook
-        video_path = await video_downloader_func(url, progress_hook=sync_progress_hook)
-        if video_path:
-            files_to_delete.append(video_path)
-            
-            # Kompresi jika perlu
-            if os.path.getsize(video_path) > TELEGRAM_MAX_SIZE:
-                await processing_msg.edit_text("File-nya bongsor banget, Bro! Gue kompres dulu ya biar muat dikirim... ⏳")
-                compressed_path = await compress_video(video_path)
-                if compressed_path and os.path.getsize(compressed_path) <= TELEGRAM_MAX_SIZE:
-                    video_path = compressed_path
-                    files_to_delete.append(compressed_path)
-                else:
-                    await update.message.reply_text("Gagal kompres atau hasilnya masih kegedean, Bro. Maaf, videonya nggak bisa dikirim. 😢")
-                    video_path = None
-            
-            # Kirim video jika berhasil
-            if video_path:
-                await processing_msg.edit_text("Udah siap! Gue lagi siap-siap ngirim videonya ke lu... 🚀")
-                hashtags_text = ' '.join([f'#{tag}' for tag in hashtags])
-                video_size_text = f"Ukuran Video: {os.path.getsize(video_path)/1024/1024:.1f}MB"
-                video_full_caption = (
-                    f"<b>{title}</b>\n\n"
-                    f"<i>{hashtags_text}</i>\n\n"
-                    f"{get_random_completion_message()}\n\n"
-                    f"{video_size_text}\n"
-                    f"<a href='{url.split('?')[0]}'>Link Asli</a>"
-                )
-                with open(video_path, 'rb') as video_file:
-                    await update.message.reply_video(video=video_file, caption=video_full_caption, parse_mode='HTML')
+        if choice == 'audio':
+            await query.edit_message_text(text=f"Oke, gaskeun download 🎵 Audio! {get_random_loading_message()}")
+            file_path = await download_audio_only(url) # Fungsi download audio lama tetap bisa dipakai
+            if file_path:
+                with open(file_path, 'rb') as audio_file:
+                    await query.message.reply_audio(audio=audio_file, title=title)
+                await query.edit_message_text(text=f"Nih audionya, Bro! {get_random_completion_message()}")
+        else: # Ini untuk pilihan video berdasarkan format_id
+            await query.edit_message_text(text=f"Oke, gaskeun download 🎥 Video! {get_random_loading_message()}")
+            file_path = await download_video_by_format(url, choice, sync_progress_hook)
+            if file_path:
+                final_path = file_path
+                # Kompresi jika perlu
+                if os.path.getsize(file_path) > TELEGRAM_MAX_SIZE:
+                    await query.edit_message_text("File-nya bongsor banget, Bro! Gue kompres dulu ya biar muat dikirim... ⏳")
+                    compressed_path = await compress_video(file_path)
+                    if compressed_path and os.path.getsize(compressed_path) <= TELEGRAM_MAX_SIZE:
+                        final_path = compressed_path
+                    else:
+                        await query.message.reply_text("Gagal kompres atau hasilnya masih kegedean, Bro. Maaf, videonya nggak bisa dikirim. 😢")
+                        final_path = None
+                
+                if final_path:
+                    await query.edit_message_text("Udah siap! Gue lagi siap-siap ngirim videonya ke lu... 🚀")
+                    caption = f"<b>{title}</b>\n\n{get_random_completion_message()}"
+                    with open(final_path, 'rb') as video_file:
+                        await query.message.reply_video(video=video_file, caption=caption, parse_mode='HTML')
+                    await query.delete_message() # Hapus pesan status setelah berhasil
 
-        # Download dan kirim audio secara terpisah
-        await processing_msg.edit_text("Sip, video udah kekirim! Sekarang giliran audionya... 🎶")
-        audio_path = await download_audio_only(url)
-        if audio_path:
-            files_to_delete.append(audio_path)
-            if os.path.getsize(audio_path) <= TELEGRAM_MAX_SIZE:
-                with open(audio_path, 'rb') as audio_file:
-                    await update.message.reply_audio(audio=audio_file, title=title)
-            else:
-                await update.message.reply_text("Audionya kegedean, Bro, nggak bisa dikirim. 😢")
-        
-        # Kirim pesan teks terpisah
-        hashtags_text_only = ' '.join([f'#{tag}' for tag in hashtags])
-        title_hashtag_message = f"{title}\n\n{hashtags_text_only}"
-        await update.message.reply_text(text=title_hashtag_message)
+        if not file_path:
+             await query.edit_message_text("Waduh, gagal download nih, Bro. Coba format lain atau laporin ke bos gue ya. 😢")
 
     except Exception as e:
-        logger.error(f"Gagal di alur utama: {e}")
-        await processing_msg.edit_text("Waduh, ada error misterius di tengah jalan, Bro! Coba lagi ya. 😭")
+        logger.error(f"Gagal saat download pilihan user: {e}", exc_info=True)
+        await query.edit_message_text("Waduh, ada error misterius pas download, Bro! Coba lagi ya. 😭")
     finally:
-        # Hapus pesan status dan file sementara
-        try:
-            await processing_msg.delete()
-        except Exception:
-            pass # Abaikan jika pesan sudah terhapus
-        
-        for file_path in files_to_delete:
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                    logger.info(f"File dihapus: {file_path}")
-                except Exception as e:
-                    logger.error(f"Gagal menghapus file {file_path}: {e}")
+        # Hapus semua file sementara yang mungkin dibuat
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+        if 'final_path' in locals() and final_path != file_path and os.path.exists(final_path):
+            os.remove(final_path)
+
+# --- FUNGSI 3: Helper baru untuk download video berdasarkan format ---
+async def download_video_by_format(url: str, format_id: str, progress_hook=None) -> str | None:
+    """Fungsi download video baru yang menerima format_id spesifik."""
+    logger.info(f"Memulai download VIDEO format '{format_id}' untuk: {url}")
+    unique_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
+    
+    cookie_file = None
+    if 'instagram.com' in url: cookie_file = 'instagram_cookies.txt'
+    elif 'facebook.com' in url or 'fb.watch' in url: cookie_file = 'facebook_cookies.txt'
+    elif 'youtube.com' in url or 'youtu.be' in url: cookie_file = 'youtube_cookies.txt'
+
+    ydl_opts = {
+        'format': format_id, # <-- KUNCI UTAMANYA DI SINI
+        'outtmpl': f'downloads/{unique_id}.%(ext)s',
+        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
+        'merge_output_format': 'mp4',
+        'noplaylist': True, 'ignoreerrors': True, 'max_filesize': MAX_FILE_SIZE,
+        'progress_hooks': [progress_hook] if progress_hook else [],
+    }
+    if cookie_file and os.path.exists(cookie_file):
+        ydl_opts['cookiefile'] = cookie_file
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = await asyncio.to_thread(ydl.extract_info, url, download=True)
+            return ydl.prepare_filename(info)
+    except Exception as e:
+        logger.error(f"Error download_video_by_format: {e}")
+        return None
+
+# --- FUNGSI 4: Menangani tombol batal ---
+async def handle_cancel_action(update: Update, context: CallbackContext) -> None:
+    """Dipanggil saat user menekan tombol Batal."""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("Oke, dibatalin. Santuy... 😎")
 
 # ==============================================================================
 # ======================== FUNGSI UTAMA (MAIN) =================================
@@ -541,10 +602,18 @@ def main() -> None:
 
     application = Application.builder().token(TOKEN).build()
 
+    # --- INI BAGIAN YANG PERLU DIUBAH ---
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("status", status_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # 1. MessageHandler sekarang memanggil 'handle_link'
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+    
+    # 2. Tambahkan CallbackQueryHandler untuk menangani tombol
+    application.add_handler(CallbackQueryHandler(handle_download_choice, pattern='^download\|'))
+    application.add_handler(CallbackQueryHandler(handle_cancel_action, pattern='^cancel_action$'))
+    # --- BATAS PERUBAHAN ---
 
     logger.info("Bot dimulai...")
     application.run_polling()
